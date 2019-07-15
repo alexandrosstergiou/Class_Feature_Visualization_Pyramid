@@ -180,7 +180,7 @@ class MFNET_3D(nn.Module):
                     ('bn', nn.BatchNorm3d(conv5_num_out)),
                     ('relu', nn.ReLU(inplace=True))
                     ]))
-        
+
         if dropout:
             self.globalpool = nn.Sequential(OrderedDict([
                             ('avg', nn.AvgPool3d(kernel_size=(8,7,7), stride=(1,1,1))),

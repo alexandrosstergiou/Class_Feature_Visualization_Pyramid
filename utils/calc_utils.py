@@ -1,7 +1,6 @@
 import torch
 from torch.functional import F
 
-
 '''
 ---  S T A R T  O F  F U N C T I O N  B A C K P R O P _ K E R N E L _ I N D I C E S  ---
 
@@ -36,21 +35,40 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
     #Initialisation
     indices_l1 = {}
 
+    # Special architectures that include either; cross-channel convolutions, grouped convolutions, branches or fibres.
+    if (len(k_l)>1):
+        # Get shape(s) of all kenrls in layer
+        kernels_shapes = [k.shape[0] for k in k_l]
+        # Create corresponding kernel shapes
+        tmp=0
+        kernels_in_activations = [tmp+k for k in kernel_shape]
+        kernels_in_activations = [0] + kernels_in_activations
+
     # Start by computing activation map a^k_l(i)_l1 for each k_l(i), where i in indices
     for i in indices_l:
 
+        # Normal convolutions over entire activation maps
+        if (len(k_l)=1):
+            kernel_indx = 0
+
+        # Convolutions with various channels sizes
+        else:
+            tmp = 0
+            kernel_indx = id for id,ki in enumerate(kernel_shape)] tmp=tmp+ki if (tmp-i) > 0
+
         # pointwise multiplication for activation a(l1) and the ith kernel in k_l
-        #print('Kernel shape: ',k_l[i].shape)
-        #print('Activation_shape: ',a_l1[0].shape)
+        #print("Kernel shape: ",k_l[i].shape)
+        #print("Activation_shape: ",a_l1[0].shape)
 
         # Downsample the spatio-temporal dimension to create a global representation of the activation map and kernel.
-        _, dk, hk, wk = list(k_l[i].size())
+        _, dk, hk, wk = list(k_l[kernel_indx][i].size())
         _, da, ha, wa = list(a_l1[0].size())
-        kernel = F.avg_pool3d(k_l[i], (dk, hk, wk)).squeeze(-1).squeeze(-1).squeeze(-1)
+        kernel = F.avg_pool3d(k_l[kernel_indx][i], (dk, hk, wk)).squeeze(-1).squeeze(-1).squeeze(-1)
         act_map = F.avg_pool3d(a_l1[0], (da, ha, wa)).squeeze(-1).squeeze(-1).squeeze(-1)
-        groups = act_map.shape[0] // kernel.shape[0]
-        if groups > 1:
-            kernel = kernel.repeat(groups)
+
+        # Select activations for corresponding kernel channels - special architectures
+        if (len(k_l)>1):
+            act_map = act_map[kernels_in_activations[kernel_indx]:kernels_in_activations[kernel_indx+1]]
 
         pooled = torch.mul(kernel, act_map)
 
@@ -78,23 +96,26 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
         indices_l1[i]=indices_l1_i
 
     return indices_l1
+
 '''
 ---  E N D  O F  F U N C T I O N  B A C K P R O P _ K E R N E L _ I N D I C E S  ---
 '''
+
+
 
 '''
 ---  S T A R T  O F  F U N C T I O N  G E N E R A T E _ I N D I C E S  ---
 
     [About]
 
-        Function for tunneling through the network saving the indices of kernels that produce activations larger than 
+        Function for tunneling through the network saving the indices of kernels that produce activations larger than
         a threshold in a parend-child manner. For iterating through defined model depth max_depth the function
          takes a recursive form.
 
     [Args]
 
-        - layers_dict: A dictionary containing nested dictionaries following the overall structure of the network. 
-            Kernel indices of layers correspond to keys and the values relate to the layer connections to kernels in 
+        - layers_dict: A dictionary containing nested dictionaries following the overall structure of the network.
+            Kernel indices of layers correspond to keys and the values relate to the layer connections to kernels in
             the previous layer in which the activations were larger than a threshold value.
         - kernels: Tensor or list containing all the kernels of each layer in the network.
         - activations: Tensor or list containing all the activation maps of each layer of the network.
@@ -106,7 +127,7 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
 
     [Returns]
 
-        - layers_dict: A dictionary updated with all the connection paths between {net_depth,...,net_depth-max_depth} 
+        - layers_dict: A dictionary updated with all the connection paths between {net_depth,...,net_depth-max_depth}
             in pairs of (int,dir) per layer.
 
 
