@@ -97,8 +97,15 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# PyCharm project specifics
+.idea
+
 # mkdocs documentation
 /site
 
 # mypy
 .mypy_cache/
+
+kinetics-videos
+class_dependency_graph.json
+visuali*

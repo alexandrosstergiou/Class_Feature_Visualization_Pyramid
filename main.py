@@ -6,20 +6,22 @@ import torch
 import argparse
 import numpy as np
 from scipy.ndimage import zoom
-from resnet import resnet152
+from models.resnet import *
 import torch.nn.functional as F
-from sklearn.preprocessing import normalize
-
-
-
-
 
 '''
 ---  S T A R T  O F  F U N C T I O N  B A C K P R O P _ K E R N E L _ I N D I C E S  ---
 
     [About]
 
-        Function for finding the indices of specific kernels in previous layers that are above a certain threshold. The function iterates over all chosen kernels k_l and applied them to the spatio-temporal activation maps used as input (a_l1). The activation map is then pooled to a single vector shape of size (#channels). For that vector, the indices of the most used activations based on the applied kernel k_l can be found (given that they are larger than the defined threshold). What is returned, is a dictionary containing the index of each kernel k_l as keys and the indices of each corresponding activation a_l1[j] that is larger than the threshold. The indices of theses activations directly relate to the convolution operation (with kernel k_l1[j]), so the same process can be further applied to the previous layer.
+        Function for finding the indices of specific kernels in previous layers that are above a certain threshold. 
+        The function iterates over all chosen kernels k_l and applied them to the spatio-temporal activation maps used 
+        as input (a_l1). The activation map is then pooled to a single vector shape of size (#channels). 
+        For that vector, the indices of the most used activations based on the applied kernel k_l can be found (given 
+        that they are larger than the defined threshold). What is returned, is a dictionary containing the index of each 
+        kernel k_l as keys and the indices of each corresponding activation a_l1[j] that is larger than the threshold. 
+        The indices of theses activations directly relate to the convolution operation (with kernel k_l1[j]), so the 
+        same process can be further applied to the previous layer.
 
     [Args]
 
@@ -31,9 +33,12 @@ from sklearn.preprocessing import normalize
 
     [Returns]
 
-        - indices_l1: Dictionary of integers containing the kernel k_l indices as keys with the indices of the found activations (>= thres) as values.
+        - indices_l1: Dictionary of integers containing the kernel k_l indices as keys with the indices of the found
+         activations (>= thres) as values.
 
 '''
+
+
 def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
     #Initialisation
     indices_l1 = {}
@@ -91,11 +96,15 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
 
     [About]
 
-        Function for tunneling through the network saving the indices of kernels that produce activations larger than a threshold in a parend-child manner. For iterating through defined model depth max_depth the function takes a recursive form.
+        Function for tunneling through the network saving the indices of kernels that produce activations larger than 
+        a threshold in a parend-child manner. For iterating through defined model depth max_depth the function
+         takes a recursive form.
 
     [Args]
 
-        - layers_dict: A dictionary containing nested dictionaries following the overall structure of the network. Kernel indices of layers correspond to keys and the values relate to the layer connections to kernels in the previous layer in which the activations were larger than a threshold value.
+        - layers_dict: A dictionary containing nested dictionaries following the overall structure of the network. 
+            Kernel indices of layers correspond to keys and the values relate to the layer connections to kernels in 
+            the previous layer in which the activations were larger than a threshold value.
         - kernels: Tensor or list containing all the kernels of each layer in the network.
         - activations: Tensor or list containing all the activation maps of each layer of the network.
         - threshold: Float value determining the connections that should be visualised.
@@ -106,10 +115,13 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
 
     [Returns]
 
-        - layers_dict: A dictionary updated with all the connection paths between {net_depth,...,net_depth-max_depth} in pairs of (int,dir) per layer.
+        - layers_dict: A dictionary updated with all the connection paths between {net_depth,...,net_depth-max_depth} 
+            in pairs of (int,dir) per layer.
 
 
 '''
+
+
 def generate_indices(layers_dict, kernels, activations, threshold, index, max_depth, vis_depth, vis_num_kernels):
     print('Backstepping to depth -%d of maximum -%d'%(index,max_depth))
     print(index)
@@ -309,10 +321,15 @@ def savetopng(tubes,path):
             #use ~.45 alpha for frames that are no main frame 'j'
             tmp = np.full((img.shape[0], img.shape[1], 4),(255,255,255,0))
             if (i != j):
-                for ih in range(img.shape[0]):
-                    for iw in range(img.shape[1]):
-                        if(img[ih,iw,3]>0):
-                            tmp[ih,iw] = np.array([img[ih,iw][0],img[ih,iw][1],img[ih,iw][2],135])
+                # for ih in range(img.shape[0]):
+                #     for iw in range(img.shape[1]):
+                #         if(img[ih,iw,3]>0):
+                #             tmp[ih,iw] = np.array([img[ih,iw][0],img[ih,iw][1],img[ih,iw][2],135])
+
+                tmp[:, :, 0] = np.where(img[:, :, 3] > 0, img[:, :, 0], tmp[:, :, 0])
+                tmp[:, :, 1] = np.where(img[:, :, 3] > 0, img[:, :, 1], tmp[:, :, 1])
+                tmp[:, :, 2] = np.where(img[:, :, 3] > 0, img[:, :, 2], tmp[:, :, 2])
+                tmp[:, :, 3] = np.where(img[:, :, 3] > 0, 135, 0)
             else:
                 tmp = copy.deepcopy(img)
 
@@ -324,6 +341,17 @@ def savetopng(tubes,path):
             new_image = np.full((new_h, new_w, 4),(255,255,255,0))
 
             new_image[shift[0]:image.shape[0]+shift[0],shift[1]:image.shape[1]+shift[1]] = image
+
+
+            # alpha = new_image[:256,:256,3] + tmp[:,:,3]
+            # for iii in range(4):
+            #     new_image[:256,:256,iii] = np.where(tmp[:,:,3]>0,
+            #                                 np.where(new_image[:256,:256,3]==0,
+            #                                          tmp[:,:,iii],
+            #                                          new_image[:256,:256,iii]*(new_image[:256,:256,3]/alpha) +
+            #                                          tmp[:,:,iii]*(tmp[:,:,3]/alpha)
+            #                                          ),
+            #                                 new_image[:256,:256,iii])
 
             # Only transfer pixels that are not transparent (i.e. part of the frame rather than the image)
             for ih in range(tmp.shape[0]):
@@ -342,7 +370,22 @@ def savetopng(tubes,path):
 '''
 
 
+def load_images2(**kwargs):
+    load_from = r"D:\Datasets\egocentric\GTEA\cropped_clipsframes\P02-R03-BaconAndEggs\P02-R03-BaconAndEggs-1378142-1381629-F033067-F033168"
+    revert_lr = False
+    revert_ud = False
+    sampler = kwargs.get('sampler')
 
+    if load_from == 'sample_line':
+        sample = get_sample_line()
+        orig_imgs, final_imgs, uid, idxs = _load_images_from_sample(sample, revert_lr, revert_ud, sampler)
+    elif load_from == 'video_path':
+        video_path = get_video_path()
+        orig_imgs, final_imgs, uid, idxs = _load_images_from_clip(video_path, revert_lr, revert_ud, sampler)
+    else:
+        raise NotImplementedError('Unknown image input type')
+
+    return orig_imgs, _make_torch_images(final_imgs), uid, idxs
 
 
 def center_crop(data, tw=256, th=256):
@@ -357,14 +400,20 @@ def load_images(frame_dir, selected_frames):
     orig_imgs = np.zeros_like(images)
 
     # Establish connection to .db
+
     con = sqlite3.connect(os.path.join(frame_dir, 'frames.db'))
     cur = con.cursor()
+    if cur is None:
+        print("cursor is empty")
+        raise Exception
 
     paths = []
     dir = frame_dir.split('/')[-1]
+    dir_parts = os.path.split(frame_dir)
     # Get framespaths to load from database
     for index in selected_frames:
-        paths.append(os.path.join(str(dir),'frame_%05d'%index))
+        # paths.append(os.path.join(str(dir),'frame_%05d'%index))
+        paths.append("{}/{}".format(dir_parts[-1],'frame_%05d'%index))
 
     # for each element in database
     for i, frame_name in enumerate(paths):
@@ -395,11 +444,11 @@ def load_images(frame_dir, selected_frames):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='mfnet-base-parser')
-    parser.add_argument("--num_classes", type=int)
+    parser.add_argument("--num_classes", type=int) # 400
     parser.add_argument("--model_weights", type=str)
     parser.add_argument("--frame_dir", type=str)
-    parser.add_argument("--frames_start", type=int)
-    parser.add_argument("--frames_end", type=int)
+    parser.add_argument("--frames_start", type=int) # end - start = 16 frames
+    parser.add_argument("--frames_end", type=int) # duration = 16
     parser.add_argument("--label", type=int)
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--backprop_depth", type=int, default=3)
@@ -417,7 +466,7 @@ selected_frames = [i for i in range(args.frames_start,args.frames_end)]
 RGB_vid, vid = load_images(args.frame_dir, selected_frames)
 
 # load network structure
-model_ft = resnet152(sample_size=224,sample_duration=duration,num_classes=args.num_classes)
+model_ft = resnet50(sample_size=224,sample_duration=duration,num_classes=args.num_classes)
 # Create parallel model for multi-gpus
 model_ft = torch.nn.DataParallel(model_ft).cuda()
 # Load checkpoint
@@ -428,7 +477,8 @@ model_ft.eval()
 print('\n MODEL LOADED SUCESSFULLY... \n')
 
 # get class prediction, all regularisation predictions and last convolution layer activation map
-predictions, kernels, activations = model_ft(torch.tensor(vid).cuda())
+with torch.no_grad():
+    predictions, kernels, activations = model_ft(torch.tensor(vid).cuda())
 
 print('\n PREDICTIONS CALCULATED... \n')
 
@@ -480,5 +530,9 @@ _, tubes_dict = layer_visualisations(args=args, layers_dict=layers_weights_dict,
 
 print([*tubes_dict])
 
+import time
+start = time.time()
 for filename,tube in tubes_dict.items():
     savetopng(tube,filename)
+end = time.time()
+print(end-start)
