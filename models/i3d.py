@@ -96,8 +96,6 @@ class Unit3Dpy(torch.nn.Module):
             self.activation = torch.nn.functional.relu
 
     def forward(self, inp):
-        activations = []
-        weights = []
 
         if self.padding == 'SAME' and self.simplify_pad is False:
             inp = self.pad(inp)
@@ -107,8 +105,8 @@ class Unit3Dpy(torch.nn.Module):
         if self.activation is not None:
             out = torch.nn.functional.relu(out)
 
-        activations.append(out)
-        weights.append(self.conv3d.weight.data)
+        activations = out
+        weights = self.conv3d.weight.data
 
         return out,weights,activations
 
@@ -161,15 +159,15 @@ class Mixed(torch.nn.Module):
         w_0 = []
         a_0 = []
         out_0 = inp
-        for layer in self.banch_0:
-            out_0,w,a = layer(out_0)
-            w_0.append(w)
-            a_0.append(a)
+
+        out_0,w,a = self.branch_0(out_0)
+        w_0.append(w)
+        a_0.append(a)
 
         w_1 = []
         a_1 = []
         out_1 = inp
-        for layer in self.banch_1:
+        for layer in self.branch_1:
             out_1,w,a = layer(out_1)
             w_1.append(w)
             a_1.append(a)
@@ -178,7 +176,7 @@ class Mixed(torch.nn.Module):
         w_2 = []
         a_2 = []
         out_2 = inp
-        for layer in self.banch_2:
+        for layer in self.branch_2:
             out_2,w,a = layer(out_2)
             w_2.append(w)
             a_2.append(a)
@@ -187,14 +185,18 @@ class Mixed(torch.nn.Module):
         w_3 = []
         a_3 = []
         out_3 = inp
-        for layer in self.banch_3:
-            out_3,w,a = layer(out_3)
-            w_3.append(w)
-            a_3.append(a)
+        for layer in self.branch_3:
+            if (type(layer)== MaxPool3dTFPadding):
+                out=layer(out_3)
+            else:
+                out_3,w,a = layer(out_3)
+                w_3.append(w)
+                a_3.append(a)
 
         out = torch.cat((out_0, out_1, out_2, out_3), 1)
+
         activations = [torch.cat((a_0[0],a_1[0],a_2[0],a_3[0]), 1), out]
-        weights = [[w_0[0],w_1[0],w_2[0],w_3[0]],[w_0[0],w_1[1],w_2[1],w_3[1]]]
+        weights = [[w_0[0],w_1[0],w_2[0],w_3[0]],[w_0[0],w_1[1],w_2[1],w_3[0]]]
 
         return out, weights, activations
 
@@ -341,7 +343,7 @@ class I3D(torch.nn.Module):
         activations.append(a[1])
         weights.append(w[1])
 
-        out,tmp = self.maxPool3d_5a_2x2(out)
+        out= self.maxPool3d_5a_2x2(out)
 
         out,w,a = self.mixed_5b(out)
         activations.append(a[0])
@@ -368,7 +370,8 @@ class I3D(torch.nn.Module):
         out = out.mean(2)
         out_logits = out
         out = self.softmax(out_logits)
-        return out, weights,activations
+
+        return out, weights, activations
 
     def load_tf_weights(self, sess):
         state_dict = {}

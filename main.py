@@ -6,7 +6,9 @@ import torch
 import argparse
 import numpy as np
 from scipy.ndimage import zoom
-from models.resnet import *
+#from models.resnet import *
+from models.resnext import *
+from models.i3d import *
 import torch.nn.functional as F
 
 '''
@@ -80,14 +82,14 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
 
         # Inflate kernels to represent all kernels in the same feature space as the input
         if groups > 1:
-            kernel = kernel.repeat(groups)
             # Kernel inflation form [out_channels, in_channels/groups] -> [out_channels, in_channels]
             kernel = torch.cat([k.repeat(groups) for k in kernel],0)
+
+
 
         # Select activations for corresponding kernel channels - special architectures
         if (len(k_l)>1):
             act_map = act_map[kernels_in_activations[kernel_indx]:kernels_in_activations[kernel_indx+1]]
-
 
 
         pooled = torch.mul(kernel, act_map)
@@ -404,23 +406,6 @@ def savetopng(tubes,path):
 '''
 
 
-def load_images2(**kwargs):
-    load_from = r"D:\Datasets\egocentric\GTEA\cropped_clipsframes\P02-R03-BaconAndEggs\P02-R03-BaconAndEggs-1378142-1381629-F033067-F033168"
-    revert_lr = False
-    revert_ud = False
-    sampler = kwargs.get('sampler')
-
-    if load_from == 'sample_line':
-        sample = get_sample_line()
-        orig_imgs, final_imgs, uid, idxs = _load_images_from_sample(sample, revert_lr, revert_ud, sampler)
-    elif load_from == 'video_path':
-        video_path = get_video_path()
-        orig_imgs, final_imgs, uid, idxs = _load_images_from_clip(video_path, revert_lr, revert_ud, sampler)
-    else:
-        raise NotImplementedError('Unknown image input type')
-
-    return orig_imgs, _make_torch_images(final_imgs), uid, idxs
-
 
 def center_crop(data, tw=256, th=256):
     h, w, c = data.shape
@@ -476,6 +461,13 @@ def load_images(frame_dir, selected_frames):
     return np.expand_dims(orig_imgs, 0), torch_imgs.unsqueeze(0)
 
 
+def _convert_weights_to_dataparallel_i3d(weight_dict):
+   checkpoint = dict()
+   checkpoint['state_dict'] = dict()
+   for key, value in weight_dict.items():
+       checkpoint['state_dict']['module.'+key] = value
+   return checkpoint
+
 def parse_args():
     parser = argparse.ArgumentParser(description='mfnet-base-parser')
     parser.add_argument("--num_classes", type=int) # 400
@@ -500,11 +492,13 @@ selected_frames = [i for i in range(args.frames_start,args.frames_end)]
 RGB_vid, vid = load_images(args.frame_dir, selected_frames)
 
 # load network structure
-model_ft = resnet152(sample_size=224,sample_duration=duration,num_classes=args.num_classes)
+model_ft = I3D(num_classes=args.num_classes)#,sample_size=224,sample_duration=duration)
 # Create parallel model for multi-gpus
 model_ft = torch.nn.DataParallel(model_ft).cuda()
 # Load checkpoint
 checkpoint = torch.load(args.model_weights, map_location={'cuda:1':'cuda:0'})
+if not 'state_dict' in checkpoint:
+    checkpoint = _convert_weights_to_dataparallel_i3d(checkpoint)
 model_ft.load_state_dict(checkpoint['state_dict'])
 # Set to evaluation mode
 model_ft.eval()
@@ -520,10 +514,15 @@ print('\n PREDICTIONS CALCULATED... \n')
 class_weights = kernels[-1]
 class_weights = class_weights[0].detach().cpu().numpy().transpose()
 
+# Case that class weights are extracted from convolutions
+if (len(class_weights.shape)>2):
+    class_weights = class_weights.squeeze(0).squeeze(0).squeeze(0)
+
 # Minmax normalisation
 base = class_weights.min()
 weights_range = class_weights.max() - base
 class_weights = np.asarray([(x-base)/weights_range for x in class_weights])
+
 
 # Get class weights that are larger than threshold
 kernel_indeces = [index for index,weight in enumerate(class_weights[:,args.label]) if (weight >= args.threshold)]

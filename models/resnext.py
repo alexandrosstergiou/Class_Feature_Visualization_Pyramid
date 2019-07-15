@@ -58,7 +58,14 @@ class ResNeXtBottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x):
+
+        if isinstance(x,tuple):
+            x,weights,activations = x
+
         residual = x
+
+        activations=[]
+        weights=[]
 
         out = self.conv1(x)
         out = self.bn1(out)
@@ -168,6 +175,7 @@ class ResNeXt(nn.Module):
     def forward(self, x):
         weights = []
         activations = []
+
 
         x = self.conv1(x)
         weights.append([self.conv1.weight.data])
