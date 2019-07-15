@@ -1,3 +1,4 @@
+import os
 import argparse
 import torch
 import json
@@ -9,7 +10,8 @@ from utils.load_utils import load_images, load_network_structure, prepare_model
 
 def parse_args():
     parser = argparse.ArgumentParser(description='saliency-tubes-base-parser')
-    parser.add_argument("--model_name", type=str, choices=['resnet50', 'resnet101', 'resnet152', 'resnet200', 'mfnet'])
+    parser.add_argument("--model_name", type=str, choices=['resnet50', 'resnet101', 'resnet152', 'resnet200', 'mfnet',
+                                                           'resnext50', 'i3d'])
     parser.add_argument("--num_classes", type=int)  # 400
     parser.add_argument("--model_weights", type=str)
     parser.add_argument("--frame_dir", type=str)
@@ -32,21 +34,24 @@ duration = int(args.frames_end - args.frames_start)
 RGB_vid, vid = load_images(args.frame_dir, args.frames_start, args.frames_end, args.fname_convention)
 
 # load network structure
-model_ft, classification_layer_name = load_network_structure(model_name=args.model_name, num_classes=args.num_classes,
-                                                             sample_size=224, sample_duration=duration)
+model_ft = load_network_structure(model_name=args.model_name, num_classes=args.num_classes, sample_size=224,
+                                  sample_duration=duration)
 model_ft = prepare_model(model_ft, args.model_weights)
 print('\n MODEL LOADED SUCESSFULLY... \n')
 
 # get class prediction, all regularisation predictions and last convolution layer activation map
 with torch.no_grad():
-    predictions, kernels, activations = model_ft(torch.tensor(vid).cuda())
+    predictions, kernels, activations = model_ft(vid.cuda())
 print('\n PREDICTIONS CALCULATED... \n')
 
 
 # Get Linear layer weights
 # cl_l_ind = list(dict(model_ft.module.named_children()).keys()).index(classification_layer_name)
 # class_weights = model_ft.module[cl_l_ind].weight.data.detach().cpu().numpy().transpose()
-class_weights = kernels[-1].data.detach().cpu().numpy().transpose()
+class_weights = kernels[-1][0].data.detach().cpu().numpy().transpose()
+
+# class_weights2 = kernels[-1]
+# class_weights2 = class_weights2[0].detach().cpu().numpy().transpose()
 
 # Minmax normalisation
 base = class_weights.min()
@@ -62,10 +67,10 @@ layers_weights_dict[args.label] = kernel_indeces
 # Define kernels to be visualised
 layer_num, kernel_num = define_vis_kernels(args.visualisation_method)
 
-for i, k in enumerate(kernels[:-1]):
+for i,k in enumerate(kernels[:-1]):
     print()
-    print('Kernels shape', k.shape)
-    print('Activations shape', activations[i].shape)
+    print('Kernels shapes',[ki.shape for ki in k])
+    print('Activations shape',activations[i].shape)
 
 
 # Create dictionary for layer indices
@@ -76,7 +81,10 @@ k_indices_dict = generate_indices(layers_dict=layers_weights_dict, kernels=kerne
 print(k_indices_dict)
 
 # Save to JSON file
-with open('class_dependency_graph.json', 'w') as fp:
+json_path = os.path.join(args.base_output_dir,'class_dependency_graph.json')
+if not os.path.exists(args.base_output_dir):
+    os.makedirs(args.base_output_dir)
+with open(json_path, 'w') as fp:
     json.dump(k_indices_dict, fp)
 
 # Call to get all saliency tubes and store them to a dictionary

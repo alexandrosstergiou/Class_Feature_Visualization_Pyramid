@@ -79,18 +79,18 @@ class MF_UNIT(nn.Module):
             x, _weights, _activations = x
 
         h = self.conv_i1(x)
-        # _activations.append(h)
-        # _weights.append(self.conv_i1.conv.weight.data)
+        _activations.append(h)
+        _weights.append([self.conv_i1.conv.weight.data])
 
         hi2 = self.conv_i2(h)
-        # _activations.append(hi2)
-        # _weights.append(self.conv_i2.conv.weight.data)
+        _activations.append(hi2)
+        _weights.append([self.conv_i2.conv.weight.data])
 
         x_in = x + hi2
 
         h = self.conv_m1(x_in)
-        # _activations.append(h)
-        # _weights.append(self.conv_m1.conv.weight.data)
+        _activations.append(h)
+        _weights.append([self.conv_m1.conv.weight.data])
 
         h = self.conv_m2(h)
 
@@ -99,10 +99,7 @@ class MF_UNIT(nn.Module):
 
         h = h + x
         _activations.append(h)
-        # if self.conv_m2.conv.groups:
-        #     kernel = self.convm2.conv.weight.data
-        #     torch.
-        _weights.append(self.conv_m2.conv.weight.data)
+        _weights.append([self.conv_m2.conv.weight.data])
 
         return h, _weights, _activations
 
@@ -203,7 +200,7 @@ class MFNET_3D(nn.Module):
 
         h = self.conv1(x)  # x224 -> x112
         _activations.append(h)
-        _weights.append(self.conv1.conv.weight.data)
+        _weights.append([self.conv1.conv.weight.data])
 
         h = self.maxpool(h)  # x112 ->  x56
 
@@ -231,7 +228,7 @@ class MFNET_3D(nn.Module):
 
         h = h.view(h.shape[0], -1)
         h = self.classifier(h)
-        _weights.append(self.classifier.weight.data)
+        _weights.append([self.classifier.weight.data])
 
         return h, _weights, _activations
 
