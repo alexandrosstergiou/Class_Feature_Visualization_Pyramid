@@ -41,20 +41,21 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
         kernels_shapes = [k.shape[0] for k in k_l]
         # Create corresponding kernel shapes
         tmp=0
-        kernels_in_activations = [tmp+k for k in kernel_shape]
+        kernels_in_activations = [tmp+k for k in kernels_shapes]
         kernels_in_activations = [0] + kernels_in_activations
 
     # Start by computing activation map a^k_l(i)_l1 for each k_l(i), where i in indices
     for i in indices_l:
 
         # Normal convolutions over entire activation maps
-        if (len(k_l)=1):
+        if (len(k_l)==1):
             kernel_indx = 0
 
         # Convolutions with various channels sizes
         else:
             tmp = 0
-            kernel_indx = id for id,ki in enumerate(kernel_shape)] tmp=tmp+ki if (tmp-i) > 0
+            kernel_indx = [id for id, ki in enumerate(kernels_shapes) if (kernels_in_activations[id + 1] - i) > 0]
+            kernel_indx = kernel_indx[-1]
 
         # pointwise multiplication for activation a(l1) and the ith kernel in k_l
         #print("Kernel shape: ",k_l[i].shape)
@@ -65,6 +66,15 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
         _, da, ha, wa = list(a_l1[0].size())
         kernel = F.avg_pool3d(k_l[kernel_indx][i], (dk, hk, wk)).squeeze(-1).squeeze(-1).squeeze(-1)
         act_map = F.avg_pool3d(a_l1[0], (da, ha, wa)).squeeze(-1).squeeze(-1).squeeze(-1)
+
+        # If group convolutions, increase the kernel size
+        groups = act_map.shape[0] // kernel.shape[0]
+
+        # Inflate kernels to represent all kernels in the same feature space as the input
+        if groups > 1:
+            # kernel_blocks = kernel.repeat(groups)
+            # Kernel inflation form [out_channels, in_channels/groups] -> [out_channels, in_channels]
+            kernel = torch.cat([k.repeat(groups) for k in kernel],0)
 
         # Select activations for corresponding kernel channels - special architectures
         if (len(k_l)>1):

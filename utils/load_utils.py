@@ -4,7 +4,9 @@ import numpy as np
 import cv2
 import torch
 from models.resnet import *
+from models.resnext import resnet50 as resnext50, resnet101 as resnext101
 from models.mfnet_3d import MFNET_3D
+from models.i3d import *
 
 # Image loading utils #
 
@@ -110,6 +112,17 @@ def _load_images_db(frame_dir, selected_frames):
 
 
 # Network loading utils #
+def _load_resnext(model_name, num_classes, duration, sample_size=224):
+    if model_name == 'resnext50':
+        model_ft = resnext50(sample_size=sample_size, sample_duration=duration, num_classes=num_classes)
+    elif model_name == 'resnext101':
+        model_ft = resnext101(sample_size=sample_size, sample_duration=duration, num_classes=num_classes)
+    # elif model_name == 'resnext152':
+    #     model_ft = resnext152(sample_size=sample_size, sample_duration=duration, num_classes=num_classes)
+    else:  # dummy case, else is never accessed
+        model_ft = None
+    return model_ft
+
 
 def _load_resnet(model_name, num_classes, duration, sample_size=224):
     if model_name == 'resnet50':
@@ -130,16 +143,31 @@ def _load_mfnet(num_classes):
     return model_ft
 
 
+def _load_i3d(num_classes):
+    model_ft = I3D(num_classes)
+    return model_ft
+
+
 def load_network_structure(model_name, num_classes, sample_size, sample_duration):
     if model_name in ['resnet50', 'resnet101', 'resnet152', 'resnet200']:
         model_ft = _load_resnet(model_name, num_classes, sample_duration, sample_size)
-        classification_layer_name = 'fc'
+    elif model_name in ['resnext50', 'resnext101', 'resnet152']:
+        model_ft = _load_resnext(model_name, num_classes, sample_duration, sample_size)
     elif model_name == 'mfnet':
         model_ft = _load_mfnet(num_classes)
-        classification_layer_name = 'classifier'
+    elif model_name == 'i3d':
+        model_ft = _load_i3d(num_classes)
     else:
         raise Exception('Unsupported model structure: {}'.format(model_name))
-    return model_ft, classification_layer_name
+    return model_ft
+
+
+def _convert_weights_to_dataparallel_i3d(weight_dict):
+    checkpoint = dict()
+    checkpoint['state_dict'] = dict()
+    for key, value in weight_dict.items():
+        checkpoint['state_dict']['module.'+key] = value
+    return checkpoint
 
 
 # load on data parallel and cuda, load weights, import weights to network
@@ -148,6 +176,9 @@ def prepare_model(model_ft, weights_path):
     model_ft = torch.nn.DataParallel(model_ft).cuda()
     # Load checkpoint
     checkpoint = torch.load(weights_path, map_location={'cuda:1': 'cuda:0'})
+
+    if 'state_dict' not in checkpoint: # case for i3d weights
+        checkpoint = _convert_weights_to_dataparallel_i3d(checkpoint)
     model_ft.load_state_dict(checkpoint['state_dict'], strict=False)
     # Set to evaluation mode
     model_ft.eval()
