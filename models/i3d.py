@@ -196,7 +196,11 @@ class Mixed(torch.nn.Module):
         out = torch.cat((out_0, out_1, out_2, out_3), 1)
 
         activations = [torch.cat((a_0[0],a_1[0],a_2[0],a_3[0]), 1), out]
-        weights = [[w_0[0],w_1[0],w_2[0],w_3[0]],[w_0[0],w_1[1],w_2[1],w_3[0]]]
+
+        # Create 1s tensors as placeholders for not breaking the structure
+        placeholder_0 = torch.ones([w_0[0].shape[0], w_0[0].shape[0], 1, 1, 1], dtype=torch.float32).cuda()
+        placeholder_3 = torch.ones([w_3[0].shape[0], w_3[0].shape[0], 1, 1, 1], dtype=torch.float32).cuda()
+        weights = [[w_0[0],w_1[0],w_2[0],w_3[0]],[placeholder_0,w_1[1],w_2[1],placeholder_3]]
 
         return out, weights, activations
 
