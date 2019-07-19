@@ -29,23 +29,35 @@ from torch.functional import F
          activations (>= thres) as values.
 
 '''
-
-
 def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
     #Initialisation
     indices_l1 = {}
 
-    # Special architectures that include either; cross-channel convolutions, grouped convolutions, branches or fibres.
+    # Special architectures that include either; cross-channel convolutions, seperate branches or fibres.
     if (len(k_l)>1):
-        # Get shape(s) of all kenrls in layer
-        kernels_shapes = [k.shape[0] for k in k_l]
-        # Create corresponding kernel shapes
-        tmp=0
-        kernels_in_activations = [tmp+k for k in kernels_shapes]
-        kernels_in_activations = [0] + kernels_in_activations
+        # Get shape(s) of all kenel inputs for layer
+        kernels_shapes_0 = [k.shape[0] for k in k_l]
+        kernels_shapes_1 = [k.shape[1] for k in k_l]
+
+        # Create corresponding kernel shapes - output shape
+        kernels_out_list = [sum(kernels_shapes_0[:idx+1]) for idx,k in enumerate(kernels_shapes_0)]
+        kernels_out_list = [0] + kernels_out_list
+
+        # Create corresponding kernel shapes - input shape
+        kernels_in_list = [sum(kernels_shapes_1[:idx+1]) for idx,k in enumerate(kernels_shapes_1)]
+        kernels_in_list = [0] + kernels_in_list
+
+    else:
+        # Create corresponding kernel shapes - output/input shape
+        kernels_out_list = [0,k_l[0].shape[0]]
+        kernels_in_list = [0,k_l[0].shape[1]]
+
+
 
     # Start by computing activation map a^k_l(i)_l1 for each k_l(i), where i in indices
     for i in indices_l:
+
+        tmp = i
 
         # Normal convolutions over entire activation maps
         if (len(k_l)==1):
@@ -53,32 +65,38 @@ def backprop_kernel_indices(indices_l, k_l, a_l1, thres, topn=None):
 
         # Convolutions with various channels sizes
         else:
-            tmp = 0
-            kernel_indx = [id for id, ki in enumerate(kernels_shapes) if (kernels_in_activations[id + 1] - i) > 0]
-            kernel_indx = kernel_indx[-1]
+            kernel_indx = [id for id,ki in enumerate(kernels_shapes_0) if (kernels_out_list[id+1]-i) > 0]
+            kernel_indx = kernel_indx[0]
+            tmp = i - kernels_out_list[kernel_indx]
+
 
         # pointwise multiplication for activation a(l1) and the ith kernel in k_l
         #print("Kernel shape: ",k_l[i].shape)
         #print("Activation_shape: ",a_l1[0].shape)
 
         # Downsample the spatio-temporal dimension to create a global representation of the activation map and kernel.
-        _, dk, hk, wk = list(k_l[kernel_indx][i].size())
+        _, dk, hk, wk = list(k_l[kernel_indx][tmp].size())
         _, da, ha, wa = list(a_l1[0].size())
-        kernel = F.avg_pool3d(k_l[kernel_indx][i], (dk, hk, wk)).squeeze(-1).squeeze(-1).squeeze(-1)
+        kernel = F.avg_pool3d(k_l[kernel_indx][tmp], (dk, hk, wk)).squeeze(-1).squeeze(-1).squeeze(-1)
         act_map = F.avg_pool3d(a_l1[0], (da, ha, wa)).squeeze(-1).squeeze(-1).squeeze(-1)
 
+
         # If group convolutions, increase the kernel size
-        groups = act_map.shape[0] // kernel.shape[0]
+        groups = act_map.shape[0] // kernels_in_list[-1]
 
         # Inflate kernels to represent all kernels in the same feature space as the input
         if groups > 1:
-            # kernel_blocks = kernel.repeat(groups)
             # Kernel inflation form [out_channels, in_channels/groups] -> [out_channels, in_channels]
             kernel = torch.cat([k.repeat(groups) for k in kernel],0)
 
+
+
         # Select activations for corresponding kernel channels - special architectures
         if (len(k_l)>1):
-            act_map = act_map[kernels_in_activations[kernel_indx]:kernels_in_activations[kernel_indx+1]]
+            lower_lim = kernels_in_list[kernel_indx]
+            upper_lim = kernels_in_list[kernel_indx+1]
+            act_map = act_map[lower_lim:upper_lim]
+
 
         pooled = torch.mul(kernel, act_map)
 

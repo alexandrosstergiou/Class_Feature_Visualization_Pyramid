@@ -1,10 +1,8 @@
-import os
-import sqlite3
-import numpy as np
-import cv2
 import torch
+import sqlite3
+import cv2
 from models.resnet import *
-from models.resnext import resnet50 as resnext50, resnet101 as resnext101
+from models.resnext import *
 from models.mfnet_3d import MFNET_3D
 from models.i3d import *
 
@@ -151,7 +149,7 @@ def _load_i3d(num_classes):
 def load_network_structure(model_name, num_classes, sample_size, sample_duration):
     if model_name in ['resnet50', 'resnet101', 'resnet152', 'resnet200']:
         model_ft = _load_resnet(model_name, num_classes, sample_duration, sample_size)
-    elif model_name in ['resnext50', 'resnext101', 'resnet152']:
+    elif model_name in ['resnext50', 'resnext101', 'resnext152']:
         model_ft = _load_resnext(model_name, num_classes, sample_duration, sample_size)
     elif model_name == 'mfnet':
         model_ft = _load_mfnet(num_classes)

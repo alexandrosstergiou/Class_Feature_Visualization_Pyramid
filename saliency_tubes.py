@@ -2,6 +2,7 @@ import os
 import argparse
 import torch
 import json
+import time
 import numpy as np
 from utils.calc_utils import generate_indices
 from utils.vis_utils import define_vis_kernels, layer_visualisations, savetopng
@@ -24,6 +25,7 @@ def parse_args():
     parser.add_argument("--tubes_vis_method", type=str, default='concat')
     parser.add_argument("--visualisation_method", type=str, default='all')
     parser.add_argument("--base_output_dir", type=str, default=r"visualisations")
+    parser.add_argument("--only_dep_graph", default=False, action='store_true')
     return parser.parse_args()
 
 
@@ -67,31 +69,34 @@ layers_weights_dict[args.label] = kernel_indeces
 # Define kernels to be visualised
 layer_num, kernel_num = define_vis_kernels(args.visualisation_method)
 
-for i,k in enumerate(kernels[:-1]):
+for i,k in enumerate(kernels):
     print()
-    print('Kernels shapes',[ki.shape for ki in k])
-    print('Activations shape',activations[i].shape)
+    print('Kernels shapes', [ki.shape for ki in k])
+    print('Activations shape', activations[i].shape)
 
 
 # Create dictionary for layer indices
+start = time.time()
 k_indices_dict = generate_indices(layers_dict=layers_weights_dict, kernels=kernels[:-1], activations=activations[:-1],
                                   threshold=args.threshold, index=1, max_depth=args.backprop_depth, vis_depth=layer_num,
                                   vis_num_kernels=kernel_num)
-
+end = time.time()
 print(k_indices_dict)
+print('Backstepping time ', end-start)
 
 # Save to JSON file
-json_path = os.path.join(args.base_output_dir,'class_dependency_graph.json')
+json_path = os.path.join(args.base_output_dir, 'class_dependency_graph.json')
 if not os.path.exists(args.base_output_dir):
     os.makedirs(args.base_output_dir)
 with open(json_path, 'w') as fp:
     json.dump(k_indices_dict, fp)
 
-# Call to get all saliency tubes and store them to a dictionary
-_, tubes_dict = layer_visualisations(base_output_dir=args.base_output_dir, layers_dict=layers_weights_dict,
-                                     kernels=kernels[:-1], activations=activations[:-1], index=1, RGB_video=RGB_vid)
+if not args.only_dep_graph:
+    # Call to get all saliency tubes and store them to a dictionary
+    _, tubes_dict = layer_visualisations(base_output_dir=args.base_output_dir, layers_dict=layers_weights_dict,
+                                         kernels=kernels[:-1], activations=activations[:-1], index=1, RGB_video=RGB_vid)
 
-print([*tubes_dict])
+    print([*tubes_dict])
 
-for filename,tube in tubes_dict.items():
-    savetopng(tube, filename)
+    for filename,tube in tubes_dict.items():
+        savetopng(tube, filename)
