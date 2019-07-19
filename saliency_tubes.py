@@ -5,7 +5,7 @@ import json
 import time
 import numpy as np
 from utils.calc_utils import generate_indices
-from utils.vis_utils import define_vis_kernels, layer_visualisations, savetopng
+from utils.vis_utils import define_vis_kernels, layer_visualisations, savetopng, savetopng_norotation, kernel_heatmaps, vis_cams_overlayed_per_branch
 from utils.load_utils import load_images, load_network_structure, prepare_model
 
 
@@ -91,12 +91,21 @@ if not os.path.exists(args.base_output_dir):
 with open(json_path, 'w') as fp:
     json.dump(k_indices_dict, fp)
 
+# Call to get all saliency tubes and store them to a dictionary
+_, tubes_dict = layer_visualisations(base_output_dir=args.base_output_dir, layers_dict=layers_weights_dict,
+                                     kernels=kernels[:-1], activations=activations[:-1], index=1, RGB_video=RGB_vid)
+
+print([*tubes_dict])
+
 if not args.only_dep_graph:
-    # Call to get all saliency tubes and store them to a dictionary
-    _, tubes_dict = layer_visualisations(base_output_dir=args.base_output_dir, layers_dict=layers_weights_dict,
-                                         kernels=kernels[:-1], activations=activations[:-1], index=1, RGB_video=RGB_vid)
-
-    print([*tubes_dict])
-
     for filename,tube in tubes_dict.items():
         savetopng(tube, filename)
+
+
+for filename, tube in tubes_dict.items():
+    savetopng_norotation(tube, filename)
+
+# _, cams_dict = kernel_heatmaps(layers_weights_dict, kernels[:-1], activations[:-1], 1, RGB_vid.shape[1:-1])
+
+# to visualize this make sure there is only one branch down to layer 3 otherwise it is odd
+# vis_cams_overlayed_per_branch(args.base_output_dir, cams_dict, RGB_vid)

@@ -110,9 +110,6 @@ def layer_visualisations(base_output_dir, layers_dict, kernels, activations, ind
 '''
 
 
-
-
-
 '''
 ---  S T A R T  O F  F U N C T I O N  S A V E T O P N G  ---
 
@@ -235,3 +232,130 @@ def savetopng(tubes, path):
 '''
 ---  E N D  O F  F U N C T I O N  S A V E T O P N G  ---
 '''
+
+
+def kernel_heatmaps(layers_dict, kernels, activations, index, out_size, cams_list=list()):
+    # Main Iteration
+    for key, value in layers_dict.items():
+
+        # Recursive step
+        if isinstance(value, dict):
+            layers_dict[key], cams_list = kernel_heatmaps(value, kernels, activations, index + 1, out_size, cams_list)
+
+        if isinstance(layers_dict[key], list):
+
+            # get output activation map for layer
+            layerout = torch.tensor(activations[-index - 1])
+
+            cam_shape = [activations[-index - 1].shape[0], 1, activations[-index - 1].shape[2],
+                         activations[-index - 1].shape[3], activations[-index - 1].shape[4]]
+            cam = torch.zeros(cam_shape, dtype=torch.float32).cuda()
+            # main loop for selected kernels
+
+            print('Creating Saliency Tubes for :',
+                  str('layer %d, kernel %d, w/ %d <child> kernels' % (index, key, len(layers_dict[key]))))
+
+            # Apply padding - only to cases that there is a size mis-match
+            for i in layers_dict[key]:
+                try:
+                    cam += layerout[0, i].unsqueeze(0)
+                except Exception:
+                    print('-- PREDICTIONS LAYER REACHED ---')
+
+            # Resize CAM to frame level (batch,channels,frames,heigh,width) --> (frames, height, width)
+            cam = cam.squeeze(0).squeeze(0)
+            t, h, w = cam.shape
+            clip_len, clip_height, clip_width = out_size
+
+            # Tranfer both volumes to the CPU and convert them to numpy arrays
+            cam = cam.detach().cpu().numpy()
+
+            cam = resize_cam(cam, x=clip_len//t, y=clip_height//h, z=clip_width//w)
+
+            # cams_dict["{}_{}".format(index, key)] = cam
+            cams_list.append(cam)
+
+    print('End OF CAM GENERATION IN DEPTH %d WITH KERNELS ' % (index), [*layers_dict])
+    return [*layers_dict], cams_list
+
+
+def resize_cam(cam, x=2, y=32, z=32):
+    # Resize CAM to frame level
+    cam = zoom(cam, (x, y, z))
+    # print("Min - max (pre standardization)")
+    # for i in range(len(cam)):
+    #     print("{}: {}, {}".format(i, np.min(cam[i]), np.max(cam[i])))
+    cam -= np.min(cam)
+    cam /= np.max(cam) - np.min(cam)
+
+    return cam
+
+
+def vis_cams_overlayed_per_branch(base_output_dir, cams, RGB_video):
+    num_cams = len(cams)
+    # one colormap per cam. At most 5 cams for visualization
+    cam_colormaps = [cv2.COLORMAP_JET, cv2.COLORMAP_AUTUMN, cv2.COLORMAP_HOT, cv2.COLORMAP_COOL, cv2.COLORMAP_CIVIDIS]
+
+    # make dirs and filenames
+    cam_dir = os.path.join(base_output_dir,
+                               str('overlay_cam_branch_{}'.format(num_cams)),
+                               "heat_tubes")
+
+    # first create the colormapped cams
+    if num_cams > len(cam_colormaps): # colormaps are not enough to visualize all cams, just keep the 5 first cams
+        cams = cams[:len(cam_colormaps)]
+
+    cmap_cams = list()
+    for i, cam in enumerate(cams):
+        frames_cmap_cams = list()
+        for j in range(cam.shape[0]):
+            frame_cam = cam[j]
+            heatmap = cv2.applyColorMap(np.uint8(255 * frame_cam), cam_colormaps[i]) / 255
+            frames_cmap_cams.append(heatmap)
+        cmap_cams.append(frames_cmap_cams)
+
+    # aggregate the cams to the original frames
+
+    for frame_num in range(RGB_video.shape[1]):  # usually 16
+        heatframe = RGB_video[0][frame_num] // 3
+        cam_heatframe = cmap_cams[0][frame_num]
+        for frames_cmap_cams in cmap_cams[1:]:
+             cam_heatframe += (255*frames_cmap_cams[frame_num]) // num_cams
+        heatframe += 2*cam_heatframe//3
+        cv2.imshow('frames_cam', heatframe.astype(np.uint8))
+        cv2.waitKey(0)
+
+    #
+    # for frame_num in range(cams[0].shape[0]):
+    #     # produce heatmap for every frame and activation map
+    #     for i in range(len(cam_colormaps)):
+    #         cam = cams[i]
+    #         # Create colourmap
+    #         heatmap = cv2.applyColorMap(np.uint8(255//5 * cam[frame_num]), cam_colormaps[i])
+    #
+    #         # Create frame with heatmap
+    #         heatframe = heatmap // 2 + RGB_video[0][frame_num] // 3 # all_cams * 2/3 + original video * 1/3
+    #     tubes.append(heatframe)
+    #
+    # # Append a tuple of the computed heatmap and the kernels used
+    # tubes_dict[heatmap_dir] = (tubes, layers_dict[key])
+
+
+def savetopng_norotation(tubes, path):
+    path += "_orig"
+    print('SAVING TUBES FOR :', path)
+    # Save kernel indices that are visualised into file
+    if not os.path.exists(os.path.join(path)):
+        os.makedirs(os.path.join(path))
+    file = open(os.path.join(path,'frames.txt'),'w')
+    file.write(str(tubes[1]))
+    file.close()
+
+    if not os.path.exists(os.path.join(path, 'frames')):
+        os.makedirs(os.path.join(path, 'frames'))
+
+    # Iterate over tubes and just save without transforms
+    for frame,image in enumerate(tubes[0]):
+        # Ensuring that only unsign integers will be used (as expected)
+        image = image.astype(np.uint8)
+        cv2.imwrite(os.path.join(path, 'frames', 'frame_00%d.png' % frame), image)
