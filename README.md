@@ -21,7 +21,7 @@
 <i>1<sup>st</sup> 2019 ICCV Workshop on <br> <a href="http://xai.unist.ac.kr/workshop/2019/" >Interpreting and Explaining Visual Artificial Intelligence Models</a> &nbsp;&nbsp;&nbsp;
 </i>
 <br>
-<a href="" target="_blank">[pdf]</a>
+<a href="https://arxiv.org/pdf/1909.08611v1.pdfpdf" target="_blank">[arXiv preprint]</a>
 </p>
 
 
@@ -112,8 +112,11 @@ Running times were based on a 2 x Nvidia GTX1080Ti machine with an Intel i7-8700
 ### Citing Class Feature Pyramids
 If you use our code in your research or wish to refer to the baseline results, please use the following BibTeX entry:
 
-    @InProceedings{
-
+    @article{stergiou2019classfeaturepyramid,
+    title={Class Feature Pyramids for Video Explanation},
+    author={Stergiou, Alexandros and Kapidis, Georgios and Kalliatakis, Grigorios and Chrysoulas, Christos and Veltkamp, Remco and Poppe, Ronald},
+    journal={arXiv preprint arXiv:1909.08611},
+    year={2019}
     }
 
 <p align="center">
