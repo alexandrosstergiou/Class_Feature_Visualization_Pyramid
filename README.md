@@ -18,10 +18,10 @@
 </p>
 
 <p align="center">
-<i>1<sup>st</sup> 2019 ICCV Workshop on <br> <a href="http://xai.unist.ac.kr/workshop/2019/" >Interpreting and Explaining Visual Artificial Intelligence Models</a> &nbsp;&nbsp;&nbsp;
+2019 ICCV Workshop on <br> <a href="http://xai.unist.ac.kr/workshop/2019/" >Interpreting and Explaining Visual Artificial Intelligence Models</a> &nbsp;&nbsp;&nbsp;
 </i>
 <br>
-<a href="https://arxiv.org/pdf/1909.08611v1.pdfpdf" target="_blank">[arXiv preprint]</a>
+<a href="https://arxiv.org/abs/1909.08611" target="_blank">[arXiv preprint]</a>
 </p>
 
 
@@ -30,11 +30,13 @@ Make sure that the following packages are installed in your machine:
 * OpenCV
 * Scipy
 * PyTorch
-Alternatively they cane be dowloaded as:
+
+Alternatively, they cane be installed with the following command:
 
 ```
 $ pip install opencv-python scipy torch torchvision
 ```
+---
 
 We offer an additional frame-reading method based on a frame SQL database, in the case that the frames are stores in such format (for smaller inode requirements and faster loading times).
 
