@@ -21,7 +21,7 @@
 2019 ICCV Workshop on <br> <a href="http://xai.unist.ac.kr/workshop/2019/" >Interpreting and Explaining Visual Artificial Intelligence Models</a> &nbsp;&nbsp;&nbsp;
 </i>
 <br>
-<a href="https://arxiv.org/abs/1909.08611" target="_blank">[arXiv preprint]</a>
+<a href="https://ieeexplore.ieee.org/document/9022210" target="_blank">[PDF]</a>
 </p>
 
 
@@ -114,12 +114,17 @@ Running times were based on a 2 x Nvidia GTX1080Ti machine with an Intel i7-8700
 ### Citing Class Feature Pyramids
 If you use our code in your research or wish to refer to the baseline results, please use the following BibTeX entry:
 
-    @article{stergiou2019classfeaturepyramid,
-    title={Class Feature Pyramids for Video Explanation},
-    author={Stergiou, Alexandros and Kapidis, Georgios and Kalliatakis, Grigorios and Chrysoulas, Christos and Veltkamp, Remco and Poppe, Ronald},
-    journal={arXiv preprint arXiv:1909.08611},
-    year={2019}
-    }
+    @@INPROCEEDINGS{
+      author={A. {Stergiou} and G. {Kapidis} and G. {Kalliatakis} and C. {Chrysoulas} and R. {Poppe} and R. {Veltkamp}},
+      booktitle={International Conference on Computer Vision Workshop (ICCVW)},
+      title={Class Feature Pyramids for Video Explanation},
+      year={2019},
+      pages={4255-4264},
+      doi={10.1109/ICCVW.2019.00524},
+      ISSN={2473-9936},
+      month={Oct},
+      publisher={IEEE}
+      }
 
 <p align="center">
   :octocat:  <br>
